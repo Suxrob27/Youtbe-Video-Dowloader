@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.Core" Version="2.46.6" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.4" />
+    <PackageReference Include="YoutubeExplode" Version="6.4.0" />
   </ItemGroup>
 
 </Project>

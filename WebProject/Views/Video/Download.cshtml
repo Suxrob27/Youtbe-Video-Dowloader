@@ -1,0 +1,50 @@
+﻿@model WebProject.Models.VideoModel
+
+@{
+    ViewData["Title"] = "Download YouTube Video";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" />
+</head>
+<body>
+    <div class="container">
+        <h1>@ViewData["Title"]</h1>
+
+        @using (Html.BeginForm("Download", "Video", FormMethod.Post))
+        {
+            <div class="form-group">
+                <label for="VideoUrl">Video URL:</label>
+                @Html.TextBoxFor(m => m.VideoUrl, new { @class = "form-control", placeholder = "Enter YouTube video URL" })
+                @Html.ValidationMessageFor(m => m.VideoUrl, "", new { @class = "text-danger" })
+                <select asp-for="@Model.Quality" name="Quality" id="cars">
+                    <option value="720">720p</option>
+                    <option value="420">480p</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Download</button>
+        }
+
+        <div>
+            @if (ViewData.ModelState.Values.Any(v => v.Errors.Count > 0))
+            {
+                <div class="alert alert-danger">
+                    @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                    {
+                        <div>@error.ErrorMessage</div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+</body>
+</html>
