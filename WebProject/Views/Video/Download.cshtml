@@ -20,13 +20,17 @@
         {
             <div class="form-group">
                 <label for="VideoUrl">Video URL:</label>
-                @Html.TextBoxFor(m => m.VideoUrl, new { @class = "form-control", placeholder = "Enter YouTube video URL" })
+                <input asp-for="@Model.VideoUrl" type="text" tex/>
                 @Html.ValidationMessageFor(m => m.VideoUrl, "", new { @class = "text-danger" })
-                <select asp-for="@Model.Quality" name="Quality" id="cars">
-                    <option value="720">720p</option>
-                    <option value="420">480p</option>
-                </select>
+
+                <label for="Quality">Select Quality:</label>
+                @Html.DropDownListFor(m => m.Quality, new SelectList(new List<SelectListItem>
+            {
+            new SelectListItem { Text = "720p", Value = "720" },
+            new SelectListItem { Text = "480p", Value = "480" }
+            }), new { @class = "form-control" })
             </div>
+
             <button type="submit" class="btn btn-primary">Download</button>
         }
 

@@ -28,7 +28,7 @@ namespace WebProject.Controllers
             if (ModelState.IsValid)
             {
                 string videoUrl = model.VideoUrl;
-                string filePath = await DownloadVideoAsync(videoUrl,model.Quality);
+                string filePath = await DownloadVideoAsync(videoUrl, model.Quality);
 
                 if (System.IO.File.Exists(filePath))
                 {
@@ -42,15 +42,23 @@ namespace WebProject.Controllers
             return View(model);
         }
 
-        private async Task<string> DownloadVideoAsync(string videoUrl,string quality)
+        private async Task<string> DownloadVideoAsync(string videoUrl, string quality)
         {
             string fileName = "downloaded_video.mp4";
             string filePath = Path.Combine(_hostingEnvironment.WebRootPath, fileName);
 
+            // Map user-selected quality to yt-dlp format codes
+            string formatCode = quality switch
+            {
+                "720" => "136", // 720p video code
+                "480" => "135", // 480p video code
+                _ => "137"      // Default to 1080p if not specified
+            };
+
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f {quality} -o \"{filePath}\" {videoUrl}",
+                Arguments = $"-f {formatCode} -o \"{filePath}\" {videoUrl}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -75,11 +83,7 @@ namespace WebProject.Controllers
 
                 return filePath;
             }
-
         }
+
     }
-
-
-
-
-}  
+}
