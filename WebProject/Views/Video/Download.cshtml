@@ -23,12 +23,12 @@
                 <input asp-for="@Model.VideoUrl" type="text" tex/>
                 @Html.ValidationMessageFor(m => m.VideoUrl, "", new { @class = "text-danger" })
 
-                <label for="Quality">Select Quality:</label>
-                @Html.DropDownListFor(m => m.Quality, new SelectList(new List<SelectListItem>
-            {
-            new SelectListItem { Text = "720p", Value = "720" },
-            new SelectListItem { Text = "480p", Value = "480" }
-            }), new { @class = "form-control" })
+                <label asp-for="Quality">Select Quality:</label>
+                <select asp-for="Quality" name="Quality" id="Quality" class="form-control">
+                    <option value="720">720p</option>
+                    <option value="480">480p</option>
+                </select>
+
             </div>
 
             <button type="submit" class="btn btn-primary">Download</button>

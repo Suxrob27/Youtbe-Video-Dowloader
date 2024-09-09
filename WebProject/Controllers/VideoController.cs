@@ -1,5 +1,4 @@
-﻿using Grpc.Core;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using WebProject.Models;
 
@@ -32,7 +31,16 @@ namespace WebProject.Controllers
 
                 if (System.IO.File.Exists(filePath))
                 {
-                    return File(filePath, "video/mp4", Path.GetFileName(filePath));
+                    // Return the file to the user for download
+                    var memory = new MemoryStream();
+                    using (var stream = new FileStream(filePath, FileMode.Open))
+                    {
+                        await stream.CopyToAsync(memory);
+                    }
+                    memory.Position = 0;
+
+                    // Provide the file for download with a prompt
+                    return File(memory, "video/mp4", Path.GetFileName(filePath));
                 }
                 else
                 {
@@ -44,8 +52,17 @@ namespace WebProject.Controllers
 
         private async Task<string> DownloadVideoAsync(string videoUrl, string quality)
         {
-            string fileName = "downloaded_video.mp4";
-            string filePath = Path.Combine(_hostingEnvironment.WebRootPath, fileName);
+            // Path to save the downloaded video
+            string downloadFolder = Path.Combine(_hostingEnvironment.WebRootPath, "downloads");
+
+            // Ensure the directory exists
+            if (!Directory.Exists(downloadFolder))
+            {
+                Directory.CreateDirectory(downloadFolder);
+            }
+
+            // Use yt-dlp's dynamic title as filename template
+            string fileTemplate = Path.Combine(downloadFolder, "%(title)s.%(ext)s");
 
             // Map user-selected quality to yt-dlp format codes
             string formatCode = quality switch
@@ -58,7 +75,7 @@ namespace WebProject.Controllers
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode} -o \"{filePath}\" {videoUrl}",
+                Arguments = $"-f {formatCode} -o \"{fileTemplate}\" {videoUrl}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -81,9 +98,21 @@ namespace WebProject.Controllers
                     return null;
                 }
 
-                return filePath;
+                // Parse the output to get the generated file name
+                string downloadedFilePath = GetDownloadedFilePath(output, downloadFolder);
+                return downloadedFilePath;
             }
         }
 
+        // This method retrieves the file path from the yt-dlp output or download folder
+        private string GetDownloadedFilePath(string ytDlpOutput, string downloadFolder)
+        {
+            // Find the actual file downloaded (it should be in the download folder)
+            // You can check the output for file information or just get the latest file in the folder
+            var directory = new DirectoryInfo(downloadFolder);
+            var latestFile = directory.GetFiles().OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
+
+            return latestFile?.FullName;
+        }
     }
 }
