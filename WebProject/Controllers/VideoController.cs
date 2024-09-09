@@ -75,7 +75,7 @@ namespace WebProject.Controllers
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode} -o \"{fileTemplate}\" {videoUrl}",
+                Arguments = $"-f{formatCode} --merge-output-format mp4  --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -o \"{fileTemplate}\" {videoUrl}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -94,7 +94,8 @@ namespace WebProject.Controllers
                 if (process.ExitCode != 0)
                 {
                     // Log or handle error
-                    System.Diagnostics.Trace.WriteLine($"Error: {error}");
+                    Trace.WriteLine($"Output: {output}");
+                    Trace.WriteLine($"Error: {error}");
                     return null;
                 }
 
@@ -103,7 +104,6 @@ namespace WebProject.Controllers
                 return downloadedFilePath;
             }
         }
-
         // This method retrieves the file path from the yt-dlp output or download folder
         private string GetDownloadedFilePath(string ytDlpOutput, string downloadFolder)
         {
