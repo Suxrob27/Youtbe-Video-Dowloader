@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using WebProject.Models;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace WebProject.Controllers
 {
@@ -12,7 +13,7 @@ namespace WebProject.Controllers
         public VideoController(IWebHostEnvironment hostingEnvironment)
         {
             _hostingEnvironment = hostingEnvironment;
-            _ytDlpPath = Path.Combine(_hostingEnvironment.WebRootPath, "yt-dlp.exe");
+            _ytDlpPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\yt-dlp.exe");
         }
 
         [HttpGet]
@@ -47,7 +48,12 @@ namespace WebProject.Controllers
                     ModelState.AddModelError("", "Failed to download video.");
                 }
             }
+            if ( ModelState.ContainsKey("Sign in to confirm you're not a bot"))
+            {
+                ModelState.AddModelError("", "The video requires a login. Please ensure you are providing valid authentication.");
+            }
             return View(model);
+
         }
 
         private async Task<string> DownloadVideoAsync(string videoUrl, string quality)
@@ -67,21 +73,20 @@ namespace WebProject.Controllers
             // Map user-selected quality to yt-dlp format codes
             string formatCode = quality switch
             {
-                "720" => "136", // 720p video code
-                "480" => "135", // 480p video code
-                _ => "137"      // Default to 1080p if not specified
+                "720" => "136+bestaudio", // 720p video + best available audio
+                "480" => "135+bestaudio", // 480p video + best available audio
+                _ => "137+bestaudio"      // Default to 1080p video + best available audio
             };
 
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f{formatCode} --merge-output-format mp4  --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -o \"{fileTemplate}\" {videoUrl}",
+                Arguments = $"-f {formatCode} --merge-output-format mp4 --audio-format aac --fixup warn --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -o \"{fileTemplate}\" \"{videoUrl}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-
             using (var process = new Process())
             {
                 process.StartInfo = processStartInfo;
@@ -104,8 +109,8 @@ namespace WebProject.Controllers
                 return downloadedFilePath;
             }
         }
-        // This method retrieves the file path from the yt-dlp output or download folder
-        private string GetDownloadedFilePath(string ytDlpOutput, string downloadFolder)
+            // This method retrieves the file path from the yt-dlp output or download folder
+            private string GetDownloadedFilePath(string ytDlpOutput, string downloadFolder)
         {
             // Find the actual file downloaded (it should be in the download folder)
             // You can check the output for file information or just get the latest file in the folder
