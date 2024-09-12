@@ -66,22 +66,21 @@ namespace WebProject.Controllers
             {
                 Directory.CreateDirectory(downloadFolder);
             }
-
+            CheckFfmpegInstallation();
             // Use yt-dlp's dynamic title as filename template
             string fileTemplate = Path.Combine(downloadFolder, "%(title)s.%(ext)s");
 
             // Map user-selected quality to yt-dlp format codes
             string formatCode = quality switch
             {
-                "720" => "136+bestaudio", // 720p video + best available audio
-                "480" => "135+bestaudio", // 480p video + best available audio
-                _ => "137+bestaudio"      // Default to 1080p video + best available audio
+                "720" => "bestvideo[height<=720]+bestaudio",
+                "480" => "bestvideo[height<=480]+bestaudio",
+                _ => "bestvideo+bestaudio"
             };
-
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode} --merge-output-format mp4 --audio-format aac --fixup warn --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -o \"{fileTemplate}\" \"{videoUrl}\"",
+                Arguments = $"-f {formatCode} --merge-output-format mp4 --audio-format aac --ffmpeg-location \"{Path.Combine(_hostingEnvironment.WebRootPath, "yt-dlp")}\" --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" -o \"{fileTemplate}\" \"{videoUrl}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -118,6 +117,14 @@ namespace WebProject.Controllers
             var latestFile = directory.GetFiles().OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
 
             return latestFile?.FullName;
+        }
+        private void CheckFfmpegInstallation()
+        {
+            string ffmpegPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\ffmpeg.exe");
+            if (!System.IO.File.Exists(ffmpegPath))
+            {
+                throw new FileNotFoundException("ffmpeg.exe not found. Ensure ffmpeg is properly installed.");
+            }
         }
     }
 }
