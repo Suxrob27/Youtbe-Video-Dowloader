@@ -70,7 +70,7 @@ namespace WebProject.Controllers
             // Use yt-dlp's dynamic title as filename template
             string fileTemplate = Path.Combine(downloadFolder, "%(title)s.%(ext)s");
 
-            // Map user-selected quality to yt-dlp format codes
+            // Map user-selected quality to yt-dlp ftwormat codes
             string formatCode = quality switch
             {
                 "720" => "bestvideo[height<=720]+bestaudio",
