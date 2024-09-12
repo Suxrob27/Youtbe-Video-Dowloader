@@ -48,7 +48,7 @@ namespace WebProject.Controllers
                     ModelState.AddModelError("", "Failed to download video.");
                 }
             }
-            if ( ModelState.ContainsKey("Sign in to confirm you're not a bot"))
+            if (ModelState.ContainsKey("Sign in to confirm you're not a bot"))
             {
                 ModelState.AddModelError("", "The video requires a login. Please ensure you are providing valid authentication.");
             }
@@ -66,26 +66,87 @@ namespace WebProject.Controllers
             {
                 Directory.CreateDirectory(downloadFolder);
             }
-            CheckFfmpegInstallation();
-            // Use yt-dlp's dynamic title as filename template
-            string fileTemplate = Path.Combine(downloadFolder, "%(title)s.%(ext)s");
 
-            // Map user-selected quality to yt-dlp ftwormat codes
+            CheckFfmpegInstallation();
+
+            // Use yt-dlp's dynamic title as filename template
+            string videoFileTemplate = Path.Combine(downloadFolder, "%(title)s_video.%(ext)s");
+            string audioFileTemplate = Path.Combine(downloadFolder, "%(title)s_audio.%(ext)s");
+            string outputFileTemplate = Path.Combine(downloadFolder, "%(title)s_final.mp4");
+
+            // Map user-selected quality to yt-dlp format codes
             string formatCode = quality switch
             {
-                "720" => "bestvideo[height<=720]+bestaudio",
-                "480" => "bestvideo[height<=480]+bestaudio",
-                _ => "bestvideo+bestaudio"
+                "720" => "bestvideo[height<=720]",
+                "480" => "bestvideo[height<=480]",
+                _ => "bestvideo"
             };
+
+            string audioFormatCode = "bestaudio";
+
+            // Download video and audio separately
+            var videoDownloadTask = Task.Run(() => StartYtDlpProcess(formatCode, videoFileTemplate, videoUrl));
+            var audioDownloadTask = Task.Run(() => StartYtDlpProcess(audioFormatCode, audioFileTemplate, videoUrl));
+
+            await Task.WhenAll(videoDownloadTask, audioDownloadTask);
+
+            // Check if both downloads were successful
+            if (videoDownloadTask.Result != 0 || audioDownloadTask.Result != 0)
+            {
+                Trace.WriteLine("Video or audio download failed.");
+                return null;
+            }
+
+            // Merge video and audio using ffmpeg
+            return await MergeVideoAndAudioAsync(videoFileTemplate, audioFileTemplate, outputFileTemplate);
+        }
+
+        // Helper method to start yt-dlp process for video/audio download
+        private int StartYtDlpProcess(string formatCode, string outputFileTemplate, string videoUrl)
+        {
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode} --merge-output-format mp4 --audio-format aac --ffmpeg-location \"{Path.Combine(_hostingEnvironment.WebRootPath, "yt-dlp")}\" --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" -o \"{fileTemplate}\" \"{videoUrl}\"",
+                Arguments = $"-f {formatCode}  --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\"-o \"{outputFileTemplate}\" \"{videoUrl}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
+
+            using (var process = new Process())
+            {
+                process.StartInfo = processStartInfo;
+                process.Start();
+
+                string output = process.StandardOutput.ReadToEnd();
+                string error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                if (process.ExitCode != 0)
+                {
+                    Trace.WriteLine($"Download failed: {error}");
+                }
+
+                return process.ExitCode;
+            }
+        }
+
+        // Merging video and audio using ffmpeg
+        private async Task<string> MergeVideoAndAudioAsync(string videoFilePath, string audioFilePath, string outputFilePath)
+        {
+            string ffmpegPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\ffmpeg.exe");
+
+            var processStartInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-i \"{videoFilePath}\"  --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -i \"{audioFilePath}\" -c:v copy -c:a aac -strict experimental \"{outputFilePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
             using (var process = new Process())
             {
                 process.StartInfo = processStartInfo;
@@ -97,27 +158,15 @@ namespace WebProject.Controllers
 
                 if (process.ExitCode != 0)
                 {
-                    // Log or handle error
-                    Trace.WriteLine($"Output: {output}");
-                    Trace.WriteLine($"Error: {error}");
+                    Trace.WriteLine($"Merge failed: {error}");
                     return null;
                 }
 
-                // Parse the output to get the generated file name
-                string downloadedFilePath = GetDownloadedFilePath(output, downloadFolder);
-                return downloadedFilePath;
+                return outputFilePath;
             }
         }
-            // This method retrieves the file path from the yt-dlp output or download folder
-            private string GetDownloadedFilePath(string ytDlpOutput, string downloadFolder)
-        {
-            // Find the actual file downloaded (it should be in the download folder)
-            // You can check the output for file information or just get the latest file in the folder
-            var directory = new DirectoryInfo(downloadFolder);
-            var latestFile = directory.GetFiles().OrderByDescending(f => f.LastWriteTime).FirstOrDefault();
 
-            return latestFile?.FullName;
-        }
+        // Ensure that ffmpeg is installed
         private void CheckFfmpegInstallation()
         {
             string ffmpegPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\ffmpeg.exe");
