@@ -2,44 +2,133 @@
     ViewData["Title"] = "YouTube Video Downloader";
 }
 
-<h2>YouTube Video Downloader</h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input[type="text"],
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group button {
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .form-group button:hover {
+            background-color: #0056b3;
+        }
+        .info-message {
+            color: #333;
+            background-color: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .download-link {
+            display: block;
+            margin-top: 20px;
+            text-align: center;
+        }
+        .download-link a {
+            text-decoration: none;
+            color: #007bff;
+            font-size: 18px;
+        }
+        .download-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>YouTube Video Downloader</h2>
 
-<form asp-action="GetVideoQualities" method="post">
-    <div>
-        <label for="videoUrl">YouTube Video URL:</label>
-        <input type="text" id="videoUrl" name="videoUrl" required />
+        <form asp-action="GetVideoQualities" method="post">
+            <div class="form-group">
+                <label for="videoUrl">YouTube Video URL:</label>
+                <input type="text" id="videoUrl" name="videoUrl" required />
+            </div>
+            <div class="form-group">
+                <button type="submit">Get Available Qualities</button>
+            </div>
+        </form>
+
+        @if (ViewBag.Qualities != null)
+        {
+            <h3>Select Video Quality</h3>
+            <form asp-action="DownloadVideo" method="post">
+                <input type="hidden" name="videoUrl" value="@ViewBag.VideoUrl" />
+                <div class="form-group">
+                    <label for="formatCode">Available Formats:</label>
+                    <select id="formatCode" name="formatCode" required>
+                        @foreach (var quality in ViewBag.Qualities)
+                        {
+                            <option value="@quality.Split(' ')[0]">@quality</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button type="submit">Download Video</button>
+                </div>
+            </form>
+        }
+
+        @if (ViewBag.Message != null)
+        {
+            <div class="info-message">
+                <p>@ViewBag.Message</p>
+            </div>
+        }
+
+        @if (ViewBag.DownloadUrl != null)
+        {
+            <div class="download-link">
+                <a href="@ViewBag.DownloadUrl" download>Download Video</a>
+            </div>
+        }
     </div>
-    <div>
-        <button type="submit">Get Available Qualities</button>
-    </div>
-</form>
-
-@if (ViewBag.Qualities != null)
-{
-    <h3>Select Video Quality</h3>
-    <form asp-action="DownloadVideo" method="post">
-        <input type="hidden" name="videoUrl" value="@ViewBag.VideoUrl" />
-        <div>
-            <label for="formatCode">Available Formats:</label>
-            <select id="formatCode" name="formatCode" required>
-                @foreach (var quality in ViewBag.Qualities)
-                {
-                    <option value="@quality.Split(' ')[0]">@quality</option>
-                }
-            </select>
-        </div>
-        <div>
-            <button type="submit">Download Video</button>
-        </div>
-    </form>
-}
-
-@if (ViewBag.Message != null)
-{
-    <p>@ViewBag.Message</p>
-}
-
-@if (ViewBag.DownloadUrl != null)
-{
-    <a href="@ViewBag.DownloadUrl" download>Download Video</a>
-}
+</body>
+</html>
