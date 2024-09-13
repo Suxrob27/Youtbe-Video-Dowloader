@@ -1,205 +1,162 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
 using WebProject.Models;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
-namespace WebProject.Controllers
+
+namespace YouTubeDownloader.Controllers
 {
-    public class VideoController : Controller
+    public class DownloadController : Controller
     {
-        private readonly IWebHostEnvironment _hostingEnvironment;
-        private readonly string _ytDlpPath;
-
-        public VideoController(IWebHostEnvironment hostingEnvironment)
-        {
-            _hostingEnvironment = hostingEnvironment;
-            _ytDlpPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\yt-dlp.exe");
-        }
-
-        [HttpGet]
-        public IActionResult Download()
+        public IActionResult Index()
         {
             return View();
         }
+        [HttpPost]
+        public async Task<IActionResult> GetVideoQualities(string videoUrl)
+        {
+            if (string.IsNullOrWhiteSpace(videoUrl))
+            {
+                ViewBag.Message = "Please enter a valid YouTube URL.";
+                return View("Index");
+            }
+
+            string ytDlpPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\yt-dlp\yt-dlp.exe";
+            string cookiesPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\cookies.txt";
+
+            string arguments = $"--cookies \"{cookiesPath}\" --dump-json \"{videoUrl}\"";
+
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = ytDlpPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            try
+            {
+                using (var process = Process.Start(processInfo))
+                {
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        try
+                        {
+                            JObject videoInfo = JObject.Parse(output);
+                            var formats = videoInfo["formats"];
+
+                            if (formats == null)
+                            {
+                                ViewBag.Message = "No formats found for the provided URL.";
+                                return View("Index");
+                            }
+
+                            List<string> availableQualities = new List<string>();
+                            foreach (var format in formats)
+                            {
+                                string formatId = format["format_id"]?.ToString();
+                                string formatNote = format["format_note"]?.ToString();
+                                string ext = format["ext"]?.ToString();
+
+                                if (formatId != null && formatNote != null && ext != null)
+                                {
+                                    string videoFormat = $"{formatId} - {formatNote} - {ext}";
+                                    availableQualities.Add(videoFormat);
+                                }
+                            }
+
+                            ViewBag.Qualities = availableQualities;
+                            ViewBag.VideoUrl = videoUrl;
+                        }
+                        catch (Exception ex)
+                        {
+                            ViewBag.Message = "Error parsing video formats: " + ex.Message;
+                        }
+                    }
+                    else
+                    {
+                        string errorOutput = await process.StandardError.ReadToEndAsync();
+                        ViewBag.Message = "Error retrieving video formats: " + errorOutput;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Message = "An error occurred: " + ex.Message;
+            }
+
+            return View("Index");
+        }
 
         [HttpPost]
-        public async Task<IActionResult> Download(VideoModel model)
+        public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode)
         {
-            if (ModelState.IsValid)
+            if (string.IsNullOrWhiteSpace(videoUrl) || string.IsNullOrWhiteSpace(formatCode))
             {
-                string videoUrl = model.VideoUrl;
-                string filePath = await DownloadVideoAsync(videoUrl, model.Quality);
+                ViewBag.Message = "Invalid video URL or format.";
+                return View("Index");
+            }
 
-                if (System.IO.File.Exists(filePath))
+            string ytDlpPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\yt-dlp\yt-dlp.exe";  // Update this to your yt-dlp path
+            string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "downloads");
+            Directory.CreateDirectory(outputDir);
+
+            string outputFileTemplate = "%(title)s.%(ext)s";
+            string cookiesPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\cookies.txt";
+
+            string arguments = $"--cookies \"{cookiesPath}\" -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
+
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = ytDlpPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            try
+            {
+                using (var process = Process.Start(processInfo))
                 {
-                    // Return the file to the user for download
-                    var memory = new MemoryStream();
-                    using (var stream = new FileStream(filePath, FileMode.Open))
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
                     {
-                        await stream.CopyToAsync(memory);
+                        string[] files = Directory.GetFiles(outputDir);
+                        if (files.Length > 0)
+                        {
+                            string latestFile = files.OrderByDescending(f => new FileInfo(f).CreationTime).First();
+                            ViewBag.Message = "Download successful!";
+                            ViewBag.DownloadUrl = "/downloads/" + Path.GetFileName(latestFile);
+                        }
+                        else
+                        {
+                            ViewBag.Message = "Error: No files were downloaded.";
+                        }
                     }
-                    memory.Position = 0;
-
-                    // Provide the file for download with a prompt
-                    return File(memory, "video/mp4", Path.GetFileName(filePath));
-                }
-                else
-                {
-                    ModelState.AddModelError("", "Failed to download video.");
+                    else
+                    {
+                        string errorOutput = await process.StandardError.ReadToEndAsync();
+                        ViewBag.Message = "Error during download: " + errorOutput;
+                    }
                 }
             }
-            if (ModelState.ContainsKey("Sign in to confirm you're not a bot"))
+            catch (Exception ex)
             {
-                ModelState.AddModelError("", "The video requires a login. Please ensure you are providing valid authentication.");
-            }
-            return View(model);
-
-        }
-
-        private async Task<string> DownloadVideoAsync(string videoUrl, string quality)
-        {
-            string downloadFolder = Path.Combine(_hostingEnvironment.WebRootPath, "downloads");
-
-            if (!Directory.Exists(downloadFolder))
-            {
-                Directory.CreateDirectory(downloadFolder);
+                ViewBag.Message = "An error occurred: " + ex.Message;
             }
 
-            CheckFfmpegInstallation();
-
-            string videoFileTemplate = Path.Combine(downloadFolder, "%(title)s_video.%(ext)s");
-            string audioFileTemplate = Path.Combine(downloadFolder, "%(title)s_audio.%(ext)s");
-            string outputFileTemplate = Path.Combine(downloadFolder, "%(title)s_final.mp4");
-
-            string formatCode = quality switch
-            {
-                "720" => "bestvideo[height<=720]",
-                "480" => "bestvideo[height<=480]",
-                _ => "bestvideo"
-            };
-
-            string audioFormatCode = "bestaudio";
-
-            var videoDownloadTask = StartYtDlpProcessAsync(formatCode, videoFileTemplate, videoUrl);
-            var audioDownloadTask = StartYtDlpProcessAsync(audioFormatCode, audioFileTemplate, videoUrl);
-
-            await Task.WhenAll(videoDownloadTask, audioDownloadTask);
-
-            if (videoDownloadTask.Result != 0 || audioDownloadTask.Result != 0)
-            {
-                Trace.WriteLine("Video or audio download failed.");
-                return null;
-            }
-
-            return await MergeVideoAndAudioAsync(videoFileTemplate, audioFileTemplate, outputFileTemplate);
-        }
-        // Helper method to start yt-dlp process for video/audio download
-        private int StartYtDlpProcess(string formatCode, string outputFileTemplate, string videoUrl)
-        {
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode}  --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\"-o \"{outputFileTemplate}\" \"{videoUrl}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (var process = new Process())
-            {
-                process.StartInfo = processStartInfo;
-                process.Start();
-
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-
-                if (process.ExitCode != 0)
-                {
-                    Trace.WriteLine($"Download failed: {error}");
-                }
-
-                return process.ExitCode;
-            }
-        }
-
-        // Merging video and audio using ffmpeg
-        private async Task<string> MergeVideoAndAudioAsync(string videoFilePath, string audioFilePath, string outputFilePath)
-        {
-            string ffmpegPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\ffmpeg.exe");
-
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = $"-i \"{videoFilePath}\" -i \"{audioFilePath}\" -c:v copy -c:a aac -strict experimental \"{outputFilePath}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (var process = new Process())
-            {
-                process.StartInfo = processStartInfo;
-                process.Start();
-
-                string output = await process.StandardOutput.ReadToEndAsync();
-                string error = await process.StandardError.ReadToEndAsync();
-                process.WaitForExit();
-
-                Trace.WriteLine($"ffmpeg Output: {output}");
-                Trace.WriteLine($"ffmpeg Error: {error}");
-
-                if (process.ExitCode != 0)
-                {
-                    Trace.WriteLine($"Merge failed with exit code {process.ExitCode}. Error: {error}");
-                    return null;
-                }
-
-                return outputFilePath;
-            }
-        }
-        // Ensure that ffmpeg is installed
-        private void CheckFfmpegInstallation()
-        {
-            string ffmpegPath = Path.Combine(_hostingEnvironment.WebRootPath, @"yt-dlp\ffmpeg.exe");
-            if (!System.IO.File.Exists(ffmpegPath))
-            {
-                throw new FileNotFoundException("ffmpeg.exe not found. Ensure ffmpeg is properly installed.");
-            }
-        }
-        private async Task<int> StartYtDlpProcessAsync(string formatCode, string outputFileTemplate, string videoUrl)
-        {
-            var processStartInfo = new ProcessStartInfo
-            {
-                FileName = _ytDlpPath,
-                Arguments = $"-f {formatCode} --cookies \"{Path.Combine(_hostingEnvironment.WebRootPath, "cookies.txt")}\" --user-agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36\" --referer \"https://www.youtube.com/\" -o \"{outputFileTemplate}\" \"{videoUrl}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using (var process = new Process())
-            {
-                process.StartInfo = processStartInfo;
-                process.Start();
-
-                string output = await process.StandardOutput.ReadToEndAsync();
-                string error = await process.StandardError.ReadToEndAsync();
-                process.WaitForExit();
-
-                Trace.WriteLine($"yt-dlp Output: {output}");
-                Trace.WriteLine($"yt-dlp Error: {error}");
-
-                if (process.ExitCode != 0)
-                {
-                    Trace.WriteLine($"Download failed with exit code {process.ExitCode}. Error: {error}");
-                }
-
-                return process.ExitCode;
-            }
+            return View("Index");
         }
     }
 }

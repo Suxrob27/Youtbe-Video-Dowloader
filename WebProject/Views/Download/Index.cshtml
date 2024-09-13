@@ -1,0 +1,45 @@
+﻿@{
+    ViewData["Title"] = "YouTube Video Downloader";
+}
+
+<h2>YouTube Video Downloader</h2>
+
+<form asp-action="GetVideoQualities" method="post">
+    <div>
+        <label for="videoUrl">YouTube Video URL:</label>
+        <input type="text" id="videoUrl" name="videoUrl" required />
+    </div>
+    <div>
+        <button type="submit">Get Available Qualities</button>
+    </div>
+</form>
+
+@if (ViewBag.Qualities != null)
+{
+    <h3>Select Video Quality</h3>
+    <form asp-action="DownloadVideo" method="post">
+        <input type="hidden" name="videoUrl" value="@ViewBag.VideoUrl" />
+        <div>
+            <label for="formatCode">Available Formats:</label>
+            <select id="formatCode" name="formatCode" required>
+                @foreach (var quality in ViewBag.Qualities)
+                {
+                    <option value="@quality.Split(' ')[0]">@quality</option>
+                }
+            </select>
+        </div>
+        <div>
+            <button type="submit">Download Video</button>
+        </div>
+    </form>
+}
+
+@if (ViewBag.Message != null)
+{
+    <p>@ViewBag.Message</p>
+}
+
+@if (ViewBag.DownloadUrl != null)
+{
+    <a href="@ViewBag.DownloadUrl" download>Download Video</a>
+}
