@@ -2,7 +2,6 @@
 {
     public class SD
     {
-       public  static readonly string userName = "suxrobvjl0@gmail.com";
-       public   static readonly string password = "asadbekAAA24";
+        public static readonly string cookieFile = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\cookie.txt";
     }
 }

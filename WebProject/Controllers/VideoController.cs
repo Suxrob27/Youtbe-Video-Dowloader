@@ -32,8 +32,8 @@ namespace WebProject.Controllers
                 return View("Index");
             }
 
-            string authArgs = BuildAuthArgs();
-            string arguments = $"{authArgs} --dump-json \"{videoUrl}\"";
+        
+            string arguments = $"--cookies \"{SD.cookieFile}\"  --dump-json \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -116,8 +116,8 @@ namespace WebProject.Controllers
             Directory.CreateDirectory(outputDir);
 
             string outputFileTemplate = "%(title)s.%(ext)s";
-            string authArgs = BuildAuthArgs();
-            string arguments = $"{authArgs} -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
+      
+            string arguments = $"--cookies \"{SD.cookieFile}\" -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -165,15 +165,6 @@ namespace WebProject.Controllers
             return View("Index");
         }
 
-        private string BuildAuthArgs()
-        {
-            string authArgs = "";
-
-           
-                authArgs = $"--username \"{SD.userName}\" --password \"{SD.password}\"";
-            
-
-            return authArgs;
-        }
+       
     }
 }
