@@ -2,11 +2,11 @@
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using WebProject.Models;
 
-
-namespace YouTubeDownloader.Controllers
+namespace WebProject.Controllers
 {
     public class DownloadController : Controller
     {
@@ -14,19 +14,26 @@ namespace YouTubeDownloader.Controllers
         {
             return View();
         }
+
         [HttpPost]
         public async Task<IActionResult> GetVideoQualities(string videoUrl)
         {
             if (string.IsNullOrWhiteSpace(videoUrl))
             {
-                ViewBag.Message = "Please enter a valid YouTube URL.";
+                ViewBag.Message = "Please enter a valid video URL.";
                 return View("Index");
             }
 
-            string ytDlpPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\yt-dlp\yt-dlp.exe";
-            string cookiesPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\cookies.txt";
+            string ytDlpPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "yt-dlp", "yt-dlp.exe");
 
-            string arguments = $"--cookies \"{cookiesPath}\" --dump-json \"{videoUrl}\"";
+            if (!System.IO.File.Exists(ytDlpPath))
+            {
+                ViewBag.Message = "yt-dlp executable not found.";
+                return View("Index");
+            }
+
+            string authArgs = BuildAuthArgs();
+            string arguments = $"{authArgs} --dump-json \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -96,7 +103,7 @@ namespace YouTubeDownloader.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode)
+        public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode, string username, string password)
         {
             if (string.IsNullOrWhiteSpace(videoUrl) || string.IsNullOrWhiteSpace(formatCode))
             {
@@ -104,14 +111,13 @@ namespace YouTubeDownloader.Controllers
                 return View("Index");
             }
 
-            string ytDlpPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\yt-dlp\yt-dlp.exe";  // Update this to your yt-dlp path
+            string ytDlpPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "yt-dlp", "yt-dlp.exe");
             string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "downloads");
             Directory.CreateDirectory(outputDir);
 
             string outputFileTemplate = "%(title)s.%(ext)s";
-            string cookiesPath = @"C:\Users\PATIENCE\source\repos\Social Media Video  Dowloader\WebProject\wwwroot\cookies.txt";
-
-            string arguments = $"--cookies \"{cookiesPath}\" -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
+            string authArgs = BuildAuthArgs();
+            string arguments = $"{authArgs} -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -157,6 +163,17 @@ namespace YouTubeDownloader.Controllers
             }
 
             return View("Index");
+        }
+
+        private string BuildAuthArgs()
+        {
+            string authArgs = "";
+
+           
+                authArgs = $"--username \"{SD.userName}\" --password \"{SD.password}\"";
+            
+
+            return authArgs;
         }
     }
 }
