@@ -103,7 +103,7 @@ namespace WebProject.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode, string username, string password)
+        public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode)
         {
             if (string.IsNullOrWhiteSpace(videoUrl) || string.IsNullOrWhiteSpace(formatCode))
             {
@@ -112,12 +112,9 @@ namespace WebProject.Controllers
             }
 
             string ytDlpPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "yt-dlp", "yt-dlp.exe");
-            string outputDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "downloads");
-            Directory.CreateDirectory(outputDir);
 
-            string outputFileTemplate = "%(title)s.%(ext)s";
-      
-            string arguments = $"--cookies \"{SD.cookieFile}\" -f \"{formatCode}+bestaudio\" -o \"{Path.Combine(outputDir, outputFileTemplate)}\" \"{videoUrl}\"";
+            // Directly stream the video without saving it to disk
+            string arguments = $"--cookies \"{SD.cookieFile}\" -f \"{formatCode}+bestaudio\" -o - \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -133,38 +130,30 @@ namespace WebProject.Controllers
             {
                 using (var process = Process.Start(processInfo))
                 {
-                    string output = await process.StandardOutput.ReadToEndAsync();
+                    // Stream directly to the client without buffering everything
+                    Response.ContentType = "video/mp4";  // Set appropriate content type for the video
+                    Response.Headers.Add("Content-Disposition", "attachment; filename=\"video.mp4\"");
+
+                    await process.StandardOutput.BaseStream.CopyToAsync(Response.Body); // Directly stream the video to the response
                     await process.WaitForExitAsync();
 
-                    if (process.ExitCode == 0)
-                    {
-                        string[] files = Directory.GetFiles(outputDir);
-                        if (files.Length > 0)
-                        {
-                            string latestFile = files.OrderByDescending(f => new FileInfo(f).CreationTime).First();
-                            ViewBag.Message = "Your File is Ready To Download Letsss Gooo!";
-                            ViewBag.DownloadUrl = "/downloads/" + Path.GetFileName(latestFile);
-                        }
-                        else
-                        {
-                            ViewBag.Message = "Error: No files were downloaded.";
-                        }
-                    }
-                    else
+                    if (process.ExitCode != 0)
                     {
                         string errorOutput = await process.StandardError.ReadToEndAsync();
                         ViewBag.Message = "Error during download: " + errorOutput;
+                        return View("Index");
                     }
                 }
             }
             catch (Exception ex)
             {
                 ViewBag.Message = "An error occurred: " + ex.Message;
+                return View("Index");
             }
 
-            return View("Index");
+            // No need to return a FileResult as the video has already been streamed
+            return new EmptyResult();
         }
 
-       
     }
 }
