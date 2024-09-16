@@ -32,8 +32,7 @@ namespace WebProject.Controllers
                 return View("Index");
             }
 
-        
-            string arguments = $"--cookies \"{SD.cookieFile}\"  --dump-json \"{videoUrl}\"";
+            string arguments = $"--cookies \"{SD.cookieFile}\" --dump-json \"{videoUrl}\"";
 
             var processInfo = new ProcessStartInfo
             {
@@ -58,6 +57,7 @@ namespace WebProject.Controllers
                         {
                             JObject videoInfo = JObject.Parse(output);
                             var formats = videoInfo["formats"];
+                            var title = videoInfo["title"]?.ToString();  // Extract video title
 
                             if (formats == null)
                             {
@@ -81,6 +81,7 @@ namespace WebProject.Controllers
 
                             ViewBag.Qualities = availableQualities;
                             ViewBag.VideoUrl = videoUrl;
+                            ViewBag.Title = title;  // Pass the video title to the view
                         }
                         catch (Exception ex)
                         {
@@ -101,7 +102,6 @@ namespace WebProject.Controllers
 
             return View("Index");
         }
-
         [HttpPost]
         public async Task<IActionResult> DownloadVideo(string videoUrl, string formatCode)
         {
@@ -113,13 +113,51 @@ namespace WebProject.Controllers
 
             string ytDlpPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "yt-dlp", "yt-dlp.exe");
 
-            // Directly stream the video without saving it to disk
-            string arguments = $"--cookies \"{SD.cookieFile}\" -f \"{formatCode}+bestaudio\" -o - \"{videoUrl}\"";
+            // Step 1: Retrieve video metadata to get the title
+            string metadataArguments = $"--cookies \"{SD.cookieFile}\" --dump-json \"{videoUrl}\"";
+            string videoTitle = "downloaded_video";  // Default title if retrieval fails
 
-            var processInfo = new ProcessStartInfo
+            try
+            {
+                var metadataProcessInfo = new ProcessStartInfo
+                {
+                    FileName = ytDlpPath,
+                    Arguments = metadataArguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var metadataProcess = Process.Start(metadataProcessInfo))
+                {
+                    string metadataOutput = await metadataProcess.StandardOutput.ReadToEndAsync();
+                    await metadataProcess.WaitForExitAsync();
+
+                    if (metadataProcess.ExitCode == 0)
+                    {
+                        // Step 2: Parse the video metadata to extract the title
+                        JObject videoInfo = JObject.Parse(metadataOutput);
+                        videoTitle = videoInfo["title"]?.ToString() ?? videoTitle;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ViewBag.Message = "Error retrieving video title: " + ex.Message;
+                return View("Index");
+            }
+
+            // Clean up the title for safe file naming (remove invalid characters)
+            string safeFileName = string.Concat(videoTitle.Split(Path.GetInvalidFileNameChars())) + ".mp4";
+
+            // Step 3: Download the video with format that includes both video and audio
+            string downloadArguments = $"--cookies \"{SD.cookieFile}\" -f \"{formatCode}+bestaudio\" -o - \"{videoUrl}\"";
+
+            var downloadProcessInfo = new ProcessStartInfo
             {
                 FileName = ytDlpPath,
-                Arguments = arguments,
+                Arguments = downloadArguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -128,13 +166,12 @@ namespace WebProject.Controllers
 
             try
             {
-                using (var process = Process.Start(processInfo))
+                using (var process = Process.Start(downloadProcessInfo))
                 {
-                    // Stream directly to the client without buffering everything
-                    Response.ContentType = "video/mp4";  // Set appropriate content type for the video
-                    Response.Headers.Add("Content-Disposition", "attachment; filename=\"video.mp4\"");
+                    Response.ContentType = "video/mp4";
+                    Response.Headers.Add("Content-Disposition", $"attachment; filename=\"{safeFileName}\"");
 
-                    await process.StandardOutput.BaseStream.CopyToAsync(Response.Body); // Directly stream the video to the response
+                    await process.StandardOutput.BaseStream.CopyToAsync(Response.Body);
                     await process.WaitForExitAsync();
 
                     if (process.ExitCode != 0)
@@ -151,9 +188,7 @@ namespace WebProject.Controllers
                 return View("Index");
             }
 
-            // No need to return a FileResult as the video has already been streamed
             return new EmptyResult();
         }
-
     }
 }
